@@ -9,7 +9,7 @@ using namespace std;
 
 // Pack structure to avoid padding : reduces file size
 #pragma pack(push, 1)
-
+ // 1 byte char + 8 byte addr + 8 byte ip ( This is how 17 bytes are arranged ) 
 struct TraceEntry {
     char type;     // 'R' for read & 'W' for write
     UINT64 addr;   // Memory address accessed
