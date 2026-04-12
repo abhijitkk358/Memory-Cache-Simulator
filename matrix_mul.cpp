@@ -5,7 +5,7 @@ using namespace std;
 
 
 
-const int N = 256; 
+const int N = 8; 
 
 int main() {
 
