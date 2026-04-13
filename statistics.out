@@ -1,0 +1,16 @@
+Policy: LRU
+Hits: 192318 Misses: 7682 Evictions: 6658
+Hit Rate: 96.159%
+
+Policy: FIFO
+Hits: 191916 Misses: 8084 Evictions: 7060
+Hit Rate: 95.958%
+
+Policy: RANDOM
+Hits: 191629 Misses: 8371 Evictions: 7347
+Hit Rate: 95.8145%
+
+Policy: BELADY
+Hits: 188844 Misses: 11156 Evictions: 10132
+Hit Rate: 94.422%
+
