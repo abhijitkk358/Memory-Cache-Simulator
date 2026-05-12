@@ -1,0 +1,30 @@
+cd ~/pin_kit/source/tools/MyPinTool // goto folder quick 
+
+run make :
+then : $PIN_ROOT/pin -t obj-intel64/MyPinTool.so -- ./matrix_test 
+
+
+g++ -O0 matrix_mul.cpp -o matrix_test
+
+xxd -l 51 pure_trace.bin  // used to see the binary trace in terminal (3 lines 17*3)
+
+
+
+// Upcoming goalss :
+take a trace eand hand run the replacement policies on it 
+
+apply Hawkeye (optinal)
+
+make a visualizer for the data we got
+
+--------------------------Visualizer commands------------
+for folder :
+
+cd "C:\Users\Abhijit\OneDrive\Desktop\DSA\Memory_cache_Simulator"
+
+
+to run : 
+
+node visualizer\server.js 8768
+
+http://127.0.0.1:8768/visualizer/
