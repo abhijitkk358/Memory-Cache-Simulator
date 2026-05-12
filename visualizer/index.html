@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>L1 L2 Cache Visualizer</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Trace-driven cache simulator</p>
+        <h1>L1 / L2 Cache Visualizer</h1>
+        <p id="traceStatus">No trace loaded</p>
+      </div>
+      <div class="top-actions">
+        <button type="button" class="ghost-button" id="loadBundledTrace">Load trace file</button>
+        <label class="file-button">
+          <input id="traceFile" type="file" accept=".out,.trace,.txt">
+          Choose trace file
+        </label>
+      </div>
+    </header>
+
+    <section class="workspace">
+      <aside class="control-panel" aria-label="Cache simulator controls">
+        <section class="panel">
+          <h2>Simulation Setup</h2>
+          <div class="field-grid">
+            <label>
+              <span>Policy</span>
+              <select id="policy">
+                <option value="LRU">LRU</option>
+                <option value="FIFO">FIFO</option>
+                <option value="RANDOM">Random</option>
+                <option value="BELADY">Belady optimal</option>
+              </select>
+            </label>
+            <label>
+              <span>Block size</span>
+              <input id="blockSize" type="number" min="1" max="4096" step="1" value="64">
+            </label>
+            <label>
+              <span>Max accesses</span>
+              <input id="maxAccesses" type="number" min="1" step="1" value="5000">
+            </label>
+            <label>
+              <span>Speed</span>
+              <input id="speed" type="range" min="1" max="2500" value="160">
+            </label>
+          </div>
+          <div class="speed-readout"><span id="speedLabel">160</span> accesses/sec</div>
+          <p class="message" id="parseMessage" role="status"></p>
+        </section>
+
+        <section class="panel">
+          <h2>Cache Hierarchy</h2>
+          <div class="level-config">
+            <div class="level-row">
+              <strong>L1</strong>
+              <label><span>Size KB</span><input id="l1SizeKb" type="number" min="1" value="32"></label>
+              <label><span>Ways</span><input id="l1Assoc" type="number" min="1" value="4"></label>
+            </div>
+            <div class="level-row">
+              <strong>L2</strong>
+              <label><span>Size KB</span><input id="l2SizeKb" type="number" min="1" value="256"></label>
+              <label><span>Ways</span><input id="l2Assoc" type="number" min="1" value="8"></label>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Run</h2>
+          <div class="button-grid">
+            <button type="button" id="prepare">Prepare</button>
+            <button type="button" id="playPause" disabled>Play</button>
+            <button type="button" id="step" disabled>Step</button>
+            <button type="button" id="runAll" disabled>Run all</button>
+            <button type="button" class="secondary-button" id="reset" disabled>Reset</button>
+            <button type="button" class="secondary-button" id="compare" disabled>Compare</button>
+          </div>
+        </section>
+
+        <section class="panel comparison-panel">
+          <h2>Policy Comparison</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Policy</th>
+                  <th>Overall HR</th>
+                  <th>L1 HR</th>
+                  <th>L2 HR</th>
+                  <th>Memory</th>
+                </tr>
+              </thead>
+              <tbody id="comparisonBody">
+                <tr><td colspan="5">No comparison yet</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </aside>
+
+      <section class="main-stage">
+        <section class="metrics-row" aria-label="Simulation metrics">
+          <article class="metric">
+            <span>Accesses</span>
+            <strong id="metricAccesses">0</strong>
+          </article>
+          <article class="metric">
+            <span>Cache hits</span>
+            <strong id="metricHits">0</strong>
+          </article>
+          <article class="metric">
+            <span>Memory reads</span>
+            <strong id="metricMemory">0</strong>
+          </article>
+          <article class="metric">
+            <span>Overall hit rate</span>
+            <strong id="metricHitRate">0.00%</strong>
+          </article>
+          <article class="metric">
+            <span>Active level</span>
+            <strong id="metricActiveLevel">-</strong>
+          </article>
+        </section>
+
+        <section class="progress-panel">
+          <div class="progress-copy">
+            <span id="progressText">0 / 0</span>
+            <span id="configSummary">Cache hierarchy not prepared</span>
+          </div>
+          <div class="progress-track"><div id="progressFill"></div></div>
+        </section>
+
+        <section class="pipeline-panel panel" aria-label="Cache hierarchy path">
+          <div class="pipeline">
+            <article class="pipeline-node" id="nodeL1">
+              <span>L1</span>
+              <strong id="nodeL1Text">Waiting</strong>
+            </article>
+            <article class="pipeline-node" id="nodeL2">
+              <span>L2</span>
+              <strong id="nodeL2Text">Waiting</strong>
+            </article>
+            <article class="pipeline-node memory" id="nodeMemory">
+              <span>Memory</span>
+              <strong id="nodeMemoryText">Waiting</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="visual-grid">
+          <article class="panel current-panel">
+            <div class="panel-title-row">
+              <h2>Current Access</h2>
+              <span id="resultBadge" class="badge idle">Idle</span>
+            </div>
+            <dl class="access-details" id="currentAccess">
+              <div><dt>Index</dt><dd>-</dd></div>
+              <div><dt>Operation</dt><dd>-</dd></div>
+              <div><dt>Address</dt><dd>-</dd></div>
+              <div><dt>Result</dt><dd>-</dd></div>
+              <div><dt>Set</dt><dd>-</dd></div>
+              <div><dt>Tag</dt><dd>-</dd></div>
+            </dl>
+          </article>
+
+          <article class="panel chart-panel">
+            <div class="panel-title-row chart-title-row">
+              <h2>Overall Hit Rate</h2>
+              <div class="chart-legend" aria-label="Chart legend">
+                <span><i class="legend-hit"></i>Hit rate</span>
+                <span><i class="legend-average"></i>Average</span>
+              </div>
+            </div>
+            <div class="chart-stats" id="hitRateStats">
+              <span>Current <strong>0.00%</strong></span>
+              <span>Average <strong>0.00%</strong></span>
+              <span>Peak <strong>0.00%</strong></span>
+              <span>Samples <strong>0</strong></span>
+            </div>
+            <canvas id="hitRateChart" width="640" height="260"></canvas>
+          </article>
+        </section>
+
+        <section class="panel elbow-panel">
+          <div class="panel-title-row">
+            <h2>Elbow Graphs</h2>
+            <button type="button" class="secondary-button" id="generateElbows" disabled>Generate graphs</button>
+          </div>
+          <p class="message" id="elbowStatus">Load a trace to generate capacity and associativity graph data.</p>
+          <div class="elbow-grid">
+            <article>
+              <h3>Miss Rate vs Cache Size</h3>
+              <canvas id="capacityChart" width="520" height="260"></canvas>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>L1 KB</th>
+                      <th>L1 Miss %</th>
+                      <th>L1 Hit %</th>
+                      <th>Overall HR</th>
+                      <th>Memory</th>
+                    </tr>
+                  </thead>
+                  <tbody id="capacityBody">
+                    <tr><td colspan="5">No data yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+            <article>
+              <h3>Hit Rate vs Associativity</h3>
+              <canvas id="associativityChart" width="520" height="260"></canvas>
+              <div class="table-wrap compact-table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Ways</th>
+                      <th>L1 Hit %</th>
+                      <th>L1 Miss %</th>
+                      <th>Overall HR</th>
+                      <th>Memory</th>
+                    </tr>
+                  </thead>
+                  <tbody id="associativityBody">
+                    <tr><td colspan="5">No data yet</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel hierarchy-panel">
+          <div class="panel-title-row">
+            <h2>Level Statistics</h2>
+            <span id="hierarchyMeta">No accesses yet</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Level</th>
+                  <th>Accesses</th>
+                  <th>Hits</th>
+                  <th>Misses</th>
+                  <th>Evictions</th>
+                  <th>Local HR</th>
+                  <th>Global HR</th>
+                </tr>
+              </thead>
+              <tbody id="hierarchyBody">
+                <tr><td colspan="7">Prepare a trace to view hierarchy statistics</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel cache-panel">
+          <div class="panel-title-row">
+            <div>
+              <h2 id="activeSetTitle">Active Set</h2>
+              <div class="level-tabs" id="levelTabs">
+                <button type="button" data-level="L1" class="active">L1</button>
+                <button type="button" data-level="L2">L2</button>
+              </div>
+            </div>
+            <span id="activeSetMeta">No set selected</span>
+          </div>
+          <div class="way-grid" id="wayGrid"></div>
+        </section>
+
+        <section class="panel heat-panel">
+          <div class="panel-title-row">
+            <h2 id="heatTitle">L1 Set Activity</h2>
+            <span id="heatMeta">0 sets</span>
+          </div>
+          <div class="heat-map" id="heatMap"></div>
+        </section>
+
+        <section class="panel log-panel">
+          <h2>Recent Events</h2>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Op</th>
+                  <th>Address</th>
+                  <th>Path</th>
+                  <th>Result</th>
+                  <th>Set</th>
+                  <th>Way</th>
+                </tr>
+              </thead>
+              <tbody id="eventLog">
+                <tr><td colspan="7">Waiting for the first access</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
